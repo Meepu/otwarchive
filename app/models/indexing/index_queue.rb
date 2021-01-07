@@ -30,6 +30,10 @@ class IndexQueue
     new(key).add_ids(ids)
   end
 
+  def self.from_class_and_label(klass, label)
+    new(get_key(klass, label))
+  end
+
   ####################
   # INSTANCE METHODS
   ####################
@@ -76,16 +80,7 @@ class IndexQueue
     klass = klass.classify # convert to the uppercase version
 
     ids.in_groups_of(BATCH_SIZE, false).each_with_index do |id_batch, i|
-      if $rollout.active?(:start_new_indexing)
-        AsyncIndexer.index(klass, id_batch, label)
-      end
-
-      # After the ES6 upgrade, delete this whole unless block.
-      unless $rollout.active?(:stop_old_indexing)
-        if %w(Work Bookmark Pseud StatCounter Tag).include?(klass)
-          IndexSubqueue.create_and_enqueue("#{name}:#{i}", id_batch)
-        end
-      end
+      AsyncIndexer.index(klass, id_batch, label)
     end
   end
 

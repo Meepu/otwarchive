@@ -1,5 +1,5 @@
 class AdminMailer < ActionMailer::Base
-  include Resque::Mailer # see README in this directory
+  include HtmlCleaner
 
   layout 'mailer'
   helper :mailer
@@ -14,26 +14,6 @@ class AdminMailer < ActionMailer::Base
       to: ArchiveConfig.ABUSE_ADDRESS,
       subject: "[#{ArchiveConfig.APP_SHORT_NAME}] Admin Abuse Report"
     )
-  end
-
-  def created_faq(archive_faq_id, admin)
-    @admin = admin
-    @archive_faq = ArchiveFaq.find(archive_faq_id)
-    @email = "translation@transformativeworks.org"
-    mail(
-      to: @email,
-      subject: "[#{ArchiveConfig.APP_SHORT_NAME}] FAQ Creation",
-    )
-  end
-
-  def edited_faq(archive_faq_id, admin)
-    @admin = admin
-    @archive_faq = ArchiveFaq.find(archive_faq_id)
-    @email = "translation@transformativeworks.org"
-    mail(
-      to: @email,
-      subject: "[#{ArchiveConfig.APP_SHORT_NAME}] FAQ Edit",
-         )
   end
 
   def feedback(feedback_id)
@@ -67,7 +47,19 @@ class AdminMailer < ActionMailer::Base
 
   # Sends a spam report
   def send_spam_alert(spam)
-    @spam = spam
+    # Make sure that the keys of the spam array are integers, so that we can do
+    # an easy look-up with user IDs. We call stringify_keys first because
+    # the currently installed version of Resque::Mailer does odd things when
+    # you pass a hash as an argument, and we want to know what we're dealing with.
+    @spam = spam.stringify_keys.transform_keys(&:to_i)
+
+    @users = User.where(id: @spam.keys).to_a
+    return if @users.empty?
+
+    # The users might have been retrieved from the database out of order, so
+    # re-sort them by their score.
+    @users.sort_by! { |user| @spam[user.id]["score"] }.reverse!
+
     mail(
       to: ArchiveConfig.SPAM_ALERT_ADDRESS,
       subject: "[#{ArchiveConfig.APP_SHORT_NAME}] Potential spam alert"

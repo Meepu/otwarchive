@@ -99,7 +99,7 @@ module ApplicationHelper
   def byline(creation, options={})
     if creation.respond_to?(:anonymous?) && creation.anonymous?
       anon_byline = ts("Anonymous").html_safe
-      if (logged_in_as_admin? || is_author_of?(creation)) && options[:visibility] != "public"
+      if options[:visibility] != "public" && (logged_in_as_admin? || is_author_of?(creation))
         anon_byline += " [#{non_anonymous_byline(creation, options[:only_path])}]".html_safe
       end
       return anon_byline
@@ -109,6 +109,12 @@ module ApplicationHelper
 
   def non_anonymous_byline(creation, url_path = nil)
     only_path = url_path.nil? ? true : url_path
+
+    if @preview_mode
+      # Skip cache in preview mode
+      return byline_text(creation, only_path)
+    end
+
     Rails.cache.fetch("#{creation.cache_key}/byline-nonanon/#{only_path.to_s}") do
       byline_text(creation, only_path)
     end
@@ -118,9 +124,7 @@ module ApplicationHelper
     if creation.respond_to?(:author)
       creation.author
     else
-      pseuds = []
-      pseuds << creation.authors if creation.authors
-      pseuds << creation.pseuds if creation.pseuds && (!@preview_mode || creation.authors.blank?)
+      pseuds = @preview_mode ? creation.pseuds_after_saving : creation.pseuds.to_a
       pseuds = pseuds.flatten.uniq.sort
 
       archivists = Hash.new []
@@ -294,12 +298,14 @@ module ApplicationHelper
   def autocomplete_options(method, options={})
     {
       class: "autocomplete",
-      autocomplete_method: (method.is_a?(Array) ? method.to_json : "/autocomplete/#{method}"),
-      autocomplete_hint_text: ts("Start typing for suggestions!"),
-      autocomplete_no_results_text: ts("(No suggestions found)"),
-      autocomplete_min_chars: 1,
-      autocomplete_searching_text: ts("Searching...")
-    }.merge(options)
+      data: {
+        autocomplete_method: (method.is_a?(Array) ? method.to_json : "/autocomplete/#{method}"),
+        autocomplete_hint_text: ts("Start typing for suggestions!"),
+        autocomplete_no_results_text: ts("(No suggestions found)"),
+        autocomplete_min_chars: 1,
+        autocomplete_searching_text: ts("Searching...")
+      }
+    }.deep_merge(options)
   end
 
   # see http://asciicasts.com/episodes/197-nested-model-form-part-2
@@ -556,5 +562,19 @@ module ApplicationHelper
   # checkbox or radio designs
   def label_indicator_and_text(text)
     content_tag(:span, "", class: "indicator", "aria-hidden": "true") + content_tag(:span, text)
+  end
+
+  # Display a collection of radio buttons, wrapped in an unordered list.
+  #
+  # The parameter option_array should be a list of pairs, where the first
+  # element in each pair is the radio button's value, and the second element in
+  # each pair is the radio button's label.
+  def radio_button_list(form, field_name, option_array)
+    content_tag(:ul) do
+      form.collection_radio_buttons(field_name, option_array, :first, :second,
+                                    include_hidden: false) do |builder|
+        content_tag(:li, builder.label { builder.radio_button + builder.text })
+      end
+    end
   end
 end # end of ApplicationHelper

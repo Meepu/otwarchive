@@ -2,13 +2,6 @@ class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
   self.per_page = ArchiveConfig.ITEMS_PER_PAGE
 
-  # ES UPGRADE TRANSITION #
-  # Remove method
-  def self.use_new_search?
-    $rollout.active?(:use_new_search) ||
-      User.current_user.present? && $rollout.active?(:use_new_search, User.current_user)
-  end
-
   before_save :update_sanitizer_version
 
   def update_sanitizer_version
@@ -17,5 +10,9 @@ class ApplicationRecord < ActiveRecord::Base
         self.send("#{field}_sanitizer_version=", ArchiveConfig.SANITIZER_VERSION)
       end
     end
+  end
+
+  def self.random_order
+    order(Arel.sql("RAND()"))
   end
 end

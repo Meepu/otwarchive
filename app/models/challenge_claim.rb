@@ -9,11 +9,6 @@ class ChallengeClaim < ApplicationRecord
   belongs_to :request_prompt, class_name: "Prompt"
   belongs_to :creation, polymorphic: true
 
-  # have to override the == operator or else two claims by same user on same user's prompts are equal
-  def ==(other)
-    super(other) && other.request_prompt_id == self.request_prompt_id
-  end
-
   scope :for_request_signup, lambda {|signup|
     where('request_signup_id = ?', signup.id)
   }
@@ -48,11 +43,19 @@ class ChallengeClaim < ApplicationRecord
   scope :order_by_date, -> { order("created_at ASC") }
 
   def self.order_by_requesting_pseud(dir="ASC")
-    joins(REQUESTING_PSEUD_JOIN).order("pseuds.name #{dir}")
+    if dir.casecmp("ASC").zero?
+      joins(REQUESTING_PSEUD_JOIN).order("pseuds.name ASC")
+    else
+      joins(REQUESTING_PSEUD_JOIN).order("pseuds.name DESC")
+    end
   end
 
   def self.order_by_offering_pseud(dir="ASC")
-    joins(CLAIMING_PSEUD_JOIN).order("pseuds.name #{dir}")
+    if dir.casecmp("ASC").zero?
+      joins(CLAIMING_PSEUD_JOIN).order("pseuds.name ASC")
+    else
+      joins(CLAIMING_PSEUD_JOIN).order("pseuds.name DESC")
+    end
   end
 
   WORKS_JOIN = "INNER JOIN works ON works.id = challenge_claims.creation_id AND challenge_claims.creation_type = 'Work'"
@@ -106,13 +109,6 @@ class ChallengeClaim < ApplicationRecord
     self.creation && (item = get_collection_item) && item.approved?
   end
 
-  include Comparable
-  def <=>(other)
-    return -1 if self.request_signup.nil? && other.request_signup
-    return 1 if other.request_signup.nil? && self.request_signup
-    return self.request_byline.downcase <=> other.request_byline.downcase
-  end
-
   def title
     if !self.request_prompt.title.blank?
       title = request_prompt.title
@@ -150,6 +146,10 @@ class ChallengeClaim < ApplicationRecord
 
   def user_allowed_to_destroy?(current_user)
     (self.claiming_user == current_user) || self.collection.user_is_maintainer?(current_user)
+  end
+
+  def prompt_description
+    request_prompt&.description || ""
   end
 
 end

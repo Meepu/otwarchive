@@ -9,8 +9,30 @@ module Searchable
   end
 
   module ClassMethods
+    # A class method to reindex every item in the current relation.
+    def reindex_all(queue = :background)
+      distinct.select(:id).find_in_batches do |batch|
+        IndexQueue.enqueue_ids(base_class, batch.map(&:id), queue)
+      end
+    end
+
     def successful_reindex(ids)
       # override to do something in response
+    end
+
+    # Given search results from Elasticsearch, retrieve the corresponding hits
+    # from the database, ordered the same way. (If the database items
+    # corresponding to the search results don't exist, don't error, just notify
+    # IndexSweeper so that the Elasticsearch indices can be cleaned up.)
+    # Override for special behavior.
+    def load_from_elasticsearch(hits)
+      ids = hits.map { |item| item['_id'] }
+
+      # Find results with where rather than find in order to avoid
+      # ActiveRecord::RecordNotFound
+      items = self.where(id: ids).group_by(&:id)
+      IndexSweeper.async_cleanup(self, ids, items.keys)
+      ids.flat_map { |id| items[id.to_i] }.compact
     end
   end
 
@@ -23,23 +45,15 @@ module Searchable
   end
 
   def reindex_document(options = {})
-    # ES UPGRADE TRANSITION #
-    # Remove `update_index rescue nil`
-    update_index rescue nil
-
-    # ES UPGRADE TRANSITION #
-    # Remove outer conditional
-    if self.class.use_new_search?
-      responses = []
-      self.indexers.each do |indexer|
-        if options[:async]
-          queue = options[:queue] || :main
-          responses << AsyncIndexer.index(indexer, [id], queue)
-        else
-          responses << indexer.new([id]).index_document(self)
-        end
+    responses = []
+    self.indexers.each do |indexer|
+      if options[:async]
+        queue = options[:queue] || :main
+        responses << AsyncIndexer.index(indexer, [id], queue)
+      else
+        responses << indexer.new([id]).index_document(self)
       end
-      responses
     end
+    responses
   end
 end

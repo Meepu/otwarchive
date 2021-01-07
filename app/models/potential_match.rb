@@ -79,12 +79,20 @@ public
   def self.generate_in_background(collection_id)
     collection = Collection.find(collection_id)
 
+    if collection.challenge.assignments_sent_at.present?
+      # If assignments have been sent, we don't want to delete everything and
+      # regenerate. (If the challenge moderator wants to recalculate potential
+      # matches after sending assignments, they can use the Purge Assignments
+      # button.)
+      return
+    end
+
     # check for invalid signups
     PotentialMatch.clear_invalid_signups(collection)
     invalid_signup_ids = collection.signups.select {|s| !s.valid?}.collect(&:id)
     unless invalid_signup_ids.empty?
       invalid_signup_ids.each {|sid| REDIS_GENERAL.sadd invalid_signup_key(collection), sid}
-      UserMailer.invalid_signup_notification(collection.id, invalid_signup_ids).deliver
+      UserMailer.invalid_signup_notification(collection.id, invalid_signup_ids).deliver_later
       PotentialMatch.cancel_generation(collection)
     else
 
@@ -159,7 +167,24 @@ public
                             pluck(:challenge_signup_id).compact
 
       # now add on "any" matches for the required types
-      condition = "any_#{required_types.first.downcase} = 1"
+      condition = case required_types.first.underscore
+                  when "fandom"
+                    "any_fandom = 1"
+                  when "character"
+                    "any_character = 1"
+                  when "rating"
+                    "any_rating = 1"
+                  when "relationship"
+                    "any_relationship = 1"
+                  when "category"
+                    "any_category = 1"
+                  when "archive_warning"
+                    "any_archive_warning = 1"
+                  when "freeform"
+                    "any_freeform = 1"
+                  else
+                    " 1 = 0"
+                  end
       matching_signup_ids += collection.prompts.where(condition).pluck(:challenge_signup_id)
     end
 

@@ -1,4 +1,4 @@
-@no-txn @works @search
+@works @search
 Feature: Search works by stats
   As a user
   I want to search works by hits, kudos, comments, and bookmarks
@@ -68,7 +68,7 @@ Feature: Search works by stats
     Then the field labeled "Kudos" should contain "<2"
       And "Kudos" should be selected within "Sort by"
       And "Ascending" should be selected within "Sort direction"
-    When I check "Complete"
+    When I choose "Complete works only"
       And I press "Search" within "#new_work_search"
     Then I should see "You searched for: Complete kudos count: <2 sort by: kudos ascending"
       And I should see "4 Found"
@@ -79,7 +79,7 @@ Feature: Search works by stats
       And the 4th result should contain "Kudos: 1"
     When I follow "Edit Your Search"
     Then the field labeled "Kudos" should contain "<2"
-      And the "Complete" checkbox should be checked
+      And the "Complete works only" checkbox should be checked
       And "Ascending" should be selected within "Sort direction"
 
   Scenario: Search by exact number of comments
@@ -147,7 +147,8 @@ Feature: Search works by stats
   Scenario: Search by > a number of comments and sort in ascending order by
     title using the header search
     Given a set of works with comments for searching
-    When I fill in "site_search" with "comments: > 2 sort: title ascending"
+    When I am on the home page
+      And I fill in "site_search" with "comments: > 2 sort: title ascending"
       And I press "Search"
     Then I should see "You searched for: comments count: > 2 sort by: title ascending"
       And I should see "3 Found"
@@ -222,7 +223,8 @@ Feature: Search works by stats
   Scenario: Search by > a number of bookmarks and sort in ascending order by
   title using the header search
     Given a set of works with bookmarks for searching
-    When I fill in "site_search" with "bookmarks: > 2 sort by: title ascending"
+    When I am on the home page
+      And I fill in "site_search" with "bookmarks: > 2 sort by: title ascending"
       And I press "Search"
     Then I should see "You searched for: bookmarks count: > 2 sort by: title ascending"
       And I should see "2 Found"

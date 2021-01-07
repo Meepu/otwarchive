@@ -18,7 +18,7 @@ class UserInviteRequestsController < ApplicationController
         @user_invite_request = @user.user_invite_requests.build
       else
         flash[:error] = ts("Please log in.")
-        redirect_to login_path
+        redirect_to new_user_session_path
      end
     else
       flash[:error] = ts("Sorry, additional invitations are unavailable. Please <a href=\"#{invite_requests_path}\">use the queue</a>! If you are the mod of a challenge currently being run on the Archive, please <a href=\"#{new_feedback_report_path}\">contact Support</a>. If you are the maintainer of an at-risk archive, please <a href=\"http://opendoors.transformativeworks.org/contact-open-doors/\">contact Open Doors</a>.".html_safe)
@@ -34,7 +34,7 @@ class UserInviteRequestsController < ApplicationController
         @user_invite_request = @user.user_invite_requests.build(user_invite_request_params)
       else
         flash[:error] = "Please log in."
-        redirect_to login_path
+        redirect_to new_user_session_path
       end
       if @user_invite_request.save
         flash[:notice] = 'Request was successfully created.'
@@ -58,7 +58,7 @@ class UserInviteRequestsController < ApplicationController
           requested_total = request.quantity.to_i
           request.quantity = 0
           request.save!
-          UserMailer.invite_request_declined(request.user_id, requested_total, request.reason).deliver
+          UserMailer.invite_request_declined(request.user_id, requested_total, request.reason).deliver_later
         end
       end
       flash[:notice] = 'All Requests were declined.'
